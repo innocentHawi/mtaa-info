@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import AdminLogout from "@/components/AdminLogout"
 
 export default function FaqAdminPage() {
   const [faqs, setFaqs] = useState<{ id: number; question: string; answer: string }[]>([]);
@@ -28,6 +29,12 @@ export default function FaqAdminPage() {
 
   return (
     <div className="p-6">
+
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">FAQs Admin Panel</h1>
+        <AdminLogout />
+      </div>
+
       <h1 className="text-2xl font-bold mb-4">FAQ Admin</h1>
 
       <div className="mb-6">
