@@ -14,6 +14,21 @@ export default function FaqAdminPage() {
       .then(setFaqs);
   }, []);
 
+  const deleteFaq = async (id: number) => {
+    await fetch(`/api/faqs/${id}`, { method: "DELETE" });
+    setFaqs(faqs.filter(f => f.id !== id));
+  };
+
+  const updateFaq = async (id: number, data: { question: string; answer: string }) => {
+    const res = await fetch(`/api/faqs/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const updated = await res.json();
+    setFaqs(faqs.map(f => (f.id === id ? updated : f)));
+  };
+
   async function addFaq() {
     if (!question || !answer) return;
     const res = await fetch("/api/faqs", {
@@ -66,6 +81,30 @@ export default function FaqAdminPage() {
           </li>
         ))}
       </ul>
+
+      <h1 className="text-xl font-bold mb-4">Manage FAQs</h1>
+      {faqs.map(faq => (
+        <div key={faq.id} className="border p-3 mb-2 rounded">
+          <p className="font-semibold">{faq.question}</p>
+          <p>{faq.answer}</p>
+          <button
+            onClick={() => deleteFaq(faq.id)}
+            className="text-red-500 mr-2"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => {
+              const newAnswer = prompt("Edit answer:", faq.answer);
+              if (newAnswer) updateFaq(faq.id, { question: faq.question, answer: newAnswer });
+            }}
+            className="text-blue-500"
+          >
+            Edit
+          </button>
+        </div>
+      ))}
+      
     </div>
   );
 }
