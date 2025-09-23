@@ -1,31 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import OpenAI from "openai";
+import stringSimilarity from "string-similarity";
 
 const prisma = new PrismaClient();
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,     // your OpenRouter key
-  baseURL: process.env.OPENAI_BASE_URL,   // point to OpenRouter
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: process.env.OPENAI_BASE_URL,
 });
 
 export async function POST(req: NextRequest) {
   const body = await req.formData();
   const msg = (body.get("Body") as string)?.toLowerCase();
 
-  // 1. Check FAQ database
+  // 1. Check FAQ database with fuzzy match
   const faqs = await prisma.faq.findMany();
-  const faq = faqs.find(f => msg.includes(f.question.toLowerCase()));
+  const faqQuestions = faqs.map(f => f.question.toLowerCase());
+
+  const { bestMatch, bestMatchIndex } = stringSimilarity.findBestMatch(msg, faqQuestions);
 
   let reply: string;
 
-  if (faq) {
-    reply = faq.answer;
+  if (bestMatch.rating > 0.5) { // you can tune threshold (0 to 1)
+    reply = faqs[bestMatchIndex].answer;
   } else {
+    // 2. Fallback → OpenRouter
     try {
-      // 2. Fallback → OpenRouter
       const gpt = await openai.chat.completions.create({
-        model: "openai/gpt-4o-mini", // or try "anthropic/claude-3-haiku"
+        model: "openai/gpt-4o-mini",
         messages: [
           { role: "system", content: "You are MtaaInfo, a helpful assistant for Kenyan county services." },
           { role: "user", content: msg }
@@ -37,7 +40,6 @@ export async function POST(req: NextRequest) {
         || "Sorry, I don’t know that one yet.";
     } catch (error: any) {
       console.error("OpenAI error:", error);
-      // Always return a Twilio-friendly XML response even if AI fails
       reply = `I couldn’t reach the AI service. You said: "${msg}"`;
     }
   }
