@@ -4,12 +4,10 @@ import type { NextRequest } from "next/server";
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Protect all /admin routes
-  if (pathname.startsWith("/admin")) {
+  if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
     const cookie = req.cookies.get("admin_auth")?.value;
 
-    // Not authenticated → redirect to login
-    if (cookie !== process.env.ADMIN_PASS) {
+    if (cookie !== "true") {
       const loginUrl = new URL("/admin/login", req.url);
       return NextResponse.redirect(loginUrl);
     }

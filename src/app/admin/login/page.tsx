@@ -4,9 +4,13 @@ import { useState } from "react";
 export default function AdminLogin() {
   const [password, setPassword] = useState("");
 
-  const handleLogin = async () => {
-    document.cookie = `admin_auth=${password}; path=/;`;
-    window.location.href = "/admin/faqs"; // redirect after login
+  const handleLogin = () => {
+    if (password === process.env.NEXT_PUBLIC_ADMIN_PASS) {
+      document.cookie = `admin_auth=true; path=/;`;
+      window.location.href = "/admin/faqs";
+    } else {
+      alert("Wrong password");
+    }
   };
 
   return (
