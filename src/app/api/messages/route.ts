@@ -3,60 +3,54 @@ import { PrismaClient } from "@prisma/client";
 import OpenAI from "openai";
 
 const prisma = new PrismaClient();
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL, // optional for OpenRouter
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,     // your OpenAI or OpenRouter key
+  baseURL: process.env.OPENAI_BASE_URL,   // optional: for OpenRouter
 });
 
 export async function POST(req: NextRequest) {
-  const form = await req.formData();
-  const msg = String(form.get("Body") || "").trim();
+  const body = await req.formData();
+  const msg = (body.get("Body") as string) || "";
 
-  // 1) Generate embedding for user query
-  const embRes = await client.embeddings.create({
-    model: "text-embedding-3-small",
+  let reply: string;
+
+  // 1. Get embedding for user message
+  const embRes = await openai.embeddings.create({
+    model: "text-embedding-3-small", // 1536-dim
     input: msg,
   });
-  const emb = embRes.data[0].embedding;
-  const embStr = "[" + emb.join(",") + "]";
+  const userEmbedding = embRes.data[0].embedding;
+  const embStr = "[" + userEmbedding.join(",") + "]";
 
-  // 2) Search FAQs by vector similarity
-  const result = await prisma.$queryRawUnsafe<any[]>(`
-    SELECT id, question, answer, (embedding <-> ${embStr}::vector) AS distance
+  // 2. Find nearest FAQ via pgvector similarity search
+  const rows = await prisma.$queryRawUnsafe<any[]>(`
+    SELECT id, question, answer, (embedding <-> $1::vector) AS distance
     FROM "Faq"
     WHERE embedding IS NOT NULL
-    ORDER BY embedding <-> ${embStr}::vector
+    ORDER BY embedding <-> $1::vector
     LIMIT 1;
-  `);
+  `, embStr);
 
-  let reply: string | null = null;
-  if (result.length > 0) {
-    const { answer, distance } = result[0];
-    const DIST_THRESHOLD = 0.30; // tweak this based on testing
-    if (distance <= DIST_THRESHOLD) {
-      reply = answer;
-    }
-  }
-
-  // 3) Fallback to GPT if no good FAQ
-  if (!reply) {
-    const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",
+  if (rows.length && rows[0].distance <= 0.30) {
+    // ✅ Found a close FAQ (threshold = 0.30, tweak as needed)
+    reply = rows[0].answer;
+  } else {
+    // ❌ No close match → fallback to GPT
+    const gpt = await openai.chat.completions.create({
+      model: "openai/gpt-4o-mini", // or another model via OpenRouter
       messages: [
-        {
-          role: "system",
-          content:
-            "You are MtaaInfo, a helpful assistant for Kenyan local information and services.",
-        },
-        { role: "user", content: msg },
+        { role: "system", content: "You are MtaaInfo, a helpful assistant for Kenyan county services." },
+        { role: "user", content: msg }
       ],
-      max_tokens: 250,
+      max_tokens: 150,
     });
-    reply = completion.choices[0].message?.content || "Samahani, sina jibu kwa sasa.";
+    reply = gpt.choices[0].message.content || "Sorry, I don't know that one yet.";
   }
 
-  // 4) Return TwiML to Twilio
-  return new NextResponse(`<Response><Message>${reply}</Message></Response>`, {
-    headers: { "Content-Type": "text/xml" },
-  });
+  // 3. Respond via Twilio (TwiML)
+  return new NextResponse(
+    `<Response><Message>${reply}</Message></Response>`,
+    { headers: { "Content-Type": "text/xml" } }
+  );
 }
