@@ -6,19 +6,6 @@ export default function FaqAdminPage() {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
 
-
-const [authenticated, setAuthenticated] = useState(false);
-
-useEffect(() => {
-  const pass = prompt("Enter admin password:");
-  if (pass === process.env.NEXT_PUBLIC_ADMIN_PASS) {
-    setAuthenticated(true);
-  }
-}, []);
-
-if (!authenticated) return <p>Not authorized</p>;
-
-
   // Load FAQs
   useEffect(() => {
     fetch("/api/faqs")
@@ -26,7 +13,6 @@ if (!authenticated) return <p>Not authorized</p>;
       .then(setFaqs);
   }, []);
 
-  // Add FAQ
   async function addFaq() {
     if (!question || !answer) return;
     const res = await fetch("/api/faqs", {
