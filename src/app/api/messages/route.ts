@@ -3,13 +3,17 @@ import { PrismaClient } from "@prisma/client";
 import OpenAI from "openai";
 
 const prisma = new PrismaClient();
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,     // your OpenRouter key
+  baseURL: process.env.OPENAI_BASE_URL,   // point to OpenRouter
+});
 
 export async function POST(req: NextRequest) {
   const body = await req.formData();
   const msg = (body.get("Body") as string)?.toLowerCase();
 
-  // 1. Check FAQ
+  // 1. Check FAQ database
   const faqs = await prisma.faq.findMany();
   const faq = faqs.find(f => msg.includes(f.question.toLowerCase()));
 
@@ -18,9 +22,9 @@ export async function POST(req: NextRequest) {
   if (faq) {
     reply = faq.answer;
   } else {
-    // 2. Fallback to GPT
+    // 2. Fallback → OpenRouter
     const gpt = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "openai/gpt-4o-mini", // or try "anthropic/claude-3-haiku" etc.
       messages: [
         { role: "system", content: "You are MtaaInfo, a helpful assistant for Kenyan county services." },
         { role: "user", content: msg }
