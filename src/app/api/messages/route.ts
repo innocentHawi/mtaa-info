@@ -22,16 +22,24 @@ export async function POST(req: NextRequest) {
   if (faq) {
     reply = faq.answer;
   } else {
-    // 2. Fallback → OpenRouter
-    const gpt = await openai.chat.completions.create({
-      model: "openai/gpt-4o-mini", // or try "anthropic/claude-3-haiku" etc.
-      messages: [
-        { role: "system", content: "You are MtaaInfo, a helpful assistant for Kenyan county services." },
-        { role: "user", content: msg }
-      ],
-      max_tokens: 150,
-    });
-    reply = gpt.choices[0].message.content || "Sorry, I don't know that one yet.";
+    try {
+      // 2. Fallback → OpenRouter
+      const gpt = await openai.chat.completions.create({
+        model: "openai/gpt-4o-mini", // or try "anthropic/claude-3-haiku"
+        messages: [
+          { role: "system", content: "You are MtaaInfo, a helpful assistant for Kenyan county services." },
+          { role: "user", content: msg }
+        ],
+        max_tokens: 150,
+      });
+
+      reply = gpt.choices?.[0]?.message?.content?.trim() 
+        || "Sorry, I don’t know that one yet.";
+    } catch (error: any) {
+      console.error("OpenAI error:", error);
+      // Always return a Twilio-friendly XML response even if AI fails
+      reply = `I couldn’t reach the AI service. You said: "${msg}"`;
+    }
   }
 
   return new NextResponse(
