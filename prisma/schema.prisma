@@ -13,3 +13,11 @@ model Faq {
   answer    String
   createdAt DateTime @default(now())
 }
+
+model MessageLog {
+  id        Int      @id @default(autoincrement())
+  question  String
+  answer    String
+  source    String   // "faq" | "ai" | "fallback"
+  createdAt DateTime @default(now())
+}

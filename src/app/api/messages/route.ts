@@ -14,18 +14,18 @@ export async function POST(req: NextRequest) {
   const body = await req.formData();
   const msg = (body.get("Body") as string)?.toLowerCase();
 
-  // 1. Check FAQ database with fuzzy match
   const faqs = await prisma.faq.findMany();
   const faqQuestions = faqs.map(f => f.question.toLowerCase());
 
   const { bestMatch, bestMatchIndex } = stringSimilarity.findBestMatch(msg, faqQuestions);
 
   let reply: string;
+  let source: "faq" | "ai" | "fallback";
 
-  if (bestMatch.rating > 0.5) { // you can tune threshold (0 to 1)
+  if (bestMatch.rating > 0.5) {
     reply = faqs[bestMatchIndex].answer;
+    source = "faq";
   } else {
-    // 2. Fallback → OpenRouter
     try {
       const gpt = await openai.chat.completions.create({
         model: "openai/gpt-4o-mini",
@@ -38,11 +38,22 @@ export async function POST(req: NextRequest) {
 
       reply = gpt.choices?.[0]?.message?.content?.trim() 
         || "Sorry, I don’t know that one yet.";
+      source = "ai";
     } catch (error: any) {
       console.error("OpenAI error:", error);
       reply = `I couldn’t reach the AI service. You said: "${msg}"`;
+      source = "fallback";
     }
   }
+
+  // Save to MessageLog
+  await prisma.messageLog.create({
+    data: {
+      question: msg,
+      answer: reply,
+      source,
+    },
+  });
 
   return new NextResponse(
     `<Response><Message>${reply}</Message></Response>`,
